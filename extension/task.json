@@ -1,0 +1,70 @@
+{
+    "$schema": "https://raw.githubusercontent.com/AArnott/vso-agent-tasks/9b41d803a/tasks.schema.json",
+    "id": "9b379453-81a7-4db9-8629-432bac4b00bc",
+    "name": "package-vulnerability-scanner",
+    "friendlyName": "Package Vulnerability Scanner",
+    "description": "sonatype Oss index scanner task",
+    "helpMarkDown": "[More Information] \n Version:1.0.0",
+    "category": "Test",
+    "visibility": [
+        "Build",
+        "Release"
+    ],
+    "runsOn": [
+        "Agent",
+        "MachineGroup"
+    ],
+    "author": "Matt Mercan",
+    "version": {
+        "Major": 1,
+        "Minor": 0,
+        "Patch": 0
+    },
+    "demands": [
+        "npm"
+    ],
+    "minimumAgentVersion": "1.92.0",
+    "groups": [{
+        "name": "advanced",
+        "displayName": "Advanced Settings",
+        "isExpanded": false
+    }],
+    "inputs": [{
+            "name": "fileName",
+            "type": "filePath",
+            "label": "Location",
+            "required": true,
+            "defaultValue": "",
+            "helpMarkDown": "Select sln, csproj or vsproj file"
+        },
+        {
+            "name": "TemplateSelector",
+            "type": "pickList",
+            "label": "Start from Policy Template",
+            "required": false,
+            "helpMarkDown": "Optionally choose a starting policy template to apply to the API. Make sure you type in valid XML and to adjust it to your needs.",
+            "defaultValue": "None",
+            "options": {
+                "None": "None",
+                "Basic": "Basic",
+                "JWT": "JWT",
+                "IP": "IP",
+                "RateAndQuota": "RateAndQuota",
+                "RateByKey": "RateByKey",
+                "QuotaByKey": "QuotaByKey",
+                "HeaderCheck": "HeaderCheck"
+            }
+        }
+    ],
+    "dataSourceBindings": [],
+    "instanceNameFormat": "Package Vulnerability Scanner",
+    "execution": {
+        "Node": {
+            "target": "app.js",
+            "argumentFormat": ""
+        }
+    },
+    "messages": {
+
+    }
+}
