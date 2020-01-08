@@ -47,9 +47,10 @@ var parser = new xml2js.Parser();
 var globalPackageList = {};
 function run() {
     return __awaiter(this, void 0, void 0, function () {
-        var filename, projects, filePath, packageList, key, value;
+        var filename, searchFordepsjson, projects, filePath, packageList, key, value, paged;
         return __generator(this, function (_a) {
             filename = task.getInput('fileName', true);
+            searchFordepsjson = task.getBoolInput("searchdepsjsoninprojects", false);
             projects = [];
             filePath = tl.findMatch(tl.getVariable("System.DefaultWorkingDirectory"), filename)[0];
             console.info("Path is " + filePath);
@@ -64,7 +65,12 @@ function run() {
             if (projects.length > 0) {
                 projects.forEach(function (project) {
                     console.info("=== " + project + " ===");
-                    analyzeProject(project);
+                    if (searchFordepsjson) {
+                        analyzeDepsjson(project);
+                    }
+                    else {
+                        analyzeProject(project);
+                    }
                 });
             }
             console.info("===  unique PackageList  ===");
@@ -74,7 +80,8 @@ function run() {
                 console.info("===  " + key);
                 value = globalPackageList[key];
             }
-            analyzePackages(packageList);
+            paged = paginate(packageList, 100, 1);
+            analyzePackages(paged);
             return [2 /*return*/];
         });
     });
@@ -141,5 +148,36 @@ function analyzePackages(packagecoordinates) {
         console.log("statusCode: " + res.statusCode);
         console.log(body);
     });
+}
+function finddepjson(prjLocation) {
+    var folder = path.dirname(prjLocation);
+    var allPaths = tl.find(folder);
+    var filteredPath = allPaths.filter(function (itemPath) { return itemPath.endsWith(".deps.json"); });
+    console.info(filteredPath);
+    return filteredPath;
+}
+function analyzeDepsjson(prjLocation) {
+    var deps = finddepjson(prjLocation);
+    deps.forEach(function (dep) {
+        var packages = [];
+        var filecontent = fs.readFileSync(dep, 'utf8');
+        var content = JSON.parse(filecontent);
+        if (content.libraries) {
+            for (var key in content.libraries) {
+                if (content.libraries.hasOwnProperty(key)) {
+                    var coordinate = 'pkg:nuget/' + key.replace('/', '@');
+                    console.log("" + coordinate);
+                    if (!globalPackageList[coordinate]) {
+                        globalPackageList[coordinate] = {};
+                    }
+                }
+            }
+        }
+        var i = 0;
+    });
+}
+function paginate(array, page_size, page_number) {
+    --page_number; // because pages logically start with 1, but technically with 0
+    return array.slice(page_number * page_size, (page_number + 1) * page_size);
 }
 run();

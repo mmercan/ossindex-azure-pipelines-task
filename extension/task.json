@@ -38,6 +38,14 @@
             "helpMarkDown": "Select sln, csproj or vsproj file"
         },
         {
+            "name": "searchdepsjsoninprojects",
+            "type": "boolean",
+            "label": "Search deps.json in Projects",
+            "defaultValue": "false",
+            "required": false,
+            "helpMarkDown": "search for deps.json for full dependency tree"
+        },
+        {
             "name": "TemplateSelector",
             "type": "pickList",
             "label": "Start from Policy Template",

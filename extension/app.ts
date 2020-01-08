@@ -13,8 +13,10 @@ var parser = new xml2js.Parser();
 var globalPackageList: any = {};
 async function run() {
     let filename: string = task.getInput('fileName', true);
+    let searchFordepsjson: boolean = task.getBoolInput("searchdepsjsoninprojects", false);
     let projects: string[] = [];
     const filePath = tl.findMatch(tl.getVariable("System.DefaultWorkingDirectory"), filename)[0];
+
     console.info("Path is " + filePath);
     if (filePath.toLocaleLowerCase().endsWith('sln')) {
         console.info("Checking Projects in the Solution");
@@ -23,10 +25,15 @@ async function run() {
         console.info("Checking Projects in the Solution");
         projects.push(filePath);
     }
+
     if (projects.length > 0) {
         projects.forEach(function (project) {
             console.info("=== " + project + " ===");
-            analyzeProject(project);
+            if (searchFordepsjson) {
+                analyzeDepsjson(project);
+            } else {
+                analyzeProject(project);
+            }
         });
     }
 
@@ -37,7 +44,8 @@ async function run() {
         console.info("===  " + key);
         var value = globalPackageList[key];
     }
-    analyzePackages(packageList);
+    let paged = paginate(packageList, 100, 1)
+    analyzePackages(paged);
 }
 
 function analyzeSolution(slnLocation: string): string[] {
@@ -107,5 +115,46 @@ function analyzePackages(packagecoordinates: string[]) {
             console.log(body)
         });
 }
+
+function finddepjson(prjLocation: string): string[] {
+    let folder = path.dirname(prjLocation)
+    let allPaths: string[] = tl.find(folder);
+    let filteredPath = allPaths.filter((itemPath: string) => itemPath.endsWith(".deps.json"));
+    console.info(filteredPath);
+    return filteredPath;
+}
+
+function analyzeDepsjson(prjLocation: string): string[] {
+    let deps = finddepjson(prjLocation);
+    deps.forEach((dep) => {
+
+
+        let packages: string[] = [];
+        let filecontent = fs.readFileSync(dep, 'utf8');
+        let content = JSON.parse(filecontent);
+        if (content.libraries) {
+            for (let key in content.libraries) {
+                if (content.libraries.hasOwnProperty(key)) {
+
+                    let coordinate = 'pkg:nuget/' + key.replace('/', '@');
+                    console.log(`${coordinate}`);
+
+                    if (!globalPackageList[coordinate]) {
+                        globalPackageList[coordinate] = {};
+                    }
+                }
+            }
+        }
+        let i = 0;
+
+    });
+}
+
+
+function paginate(array: any[], page_size: number, page_number: number) {
+    --page_number; // because pages logically start with 1, but technically with 0
+    return array.slice(page_number * page_size, (page_number + 1) * page_size);
+}
+
 
 run();
