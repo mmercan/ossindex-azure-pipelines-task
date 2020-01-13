@@ -19,6 +19,7 @@ $env:system_defaultWorkingDirectory = "C:\Bupa\Git"
 # $env:AGENT_workFolder = "C:\Bupa\Git\BupaNodeTasks\BupaVariableReader"
 $env:INPUT_fileName = "Apollo\Bupa.Api.BFF.SSP\Bupa.Api.BFF.SSP.CRM.sln"  #'mongodb://$(MongoUser):$(MongoPassword)@digital-dev-mongo1.azureservices.bupa.com.au:27017,digital-dev-mongo2.azureservices.bupa.com.au:27017,digital-dev-mongo3.azureservices.bupa.com.au:27017/'
 $env:INPUT_searchdepsjsoninprojects = "true"
+$env:INPUT_failifseverityhigher = "CRITICAL"
 
 
 

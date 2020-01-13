@@ -45,44 +45,78 @@ var xml2js = require("xml2js");
 task.setResourcePath(path.join(__dirname, 'task.json'));
 var parser = new xml2js.Parser();
 var globalPackageList = {};
+// var globalVulnerabilityList: any[] = [];
+var failifseverityhigher;
+var shouldTaskFails = false;
 function run() {
     return __awaiter(this, void 0, void 0, function () {
-        var filename, searchFordepsjson, projects, filePath, packageList, key, value, paged;
+        var filename, searchFordepsjson, projects, filePath, projectlist, packageList, key, prj, pck, prj, pck;
         return __generator(this, function (_a) {
-            filename = task.getInput('fileName', true);
-            searchFordepsjson = task.getBoolInput("searchdepsjsoninprojects", false);
-            projects = [];
-            filePath = tl.findMatch(tl.getVariable("System.DefaultWorkingDirectory"), filename)[0];
-            console.info("Path is " + filePath);
-            if (filePath.toLocaleLowerCase().endsWith('sln')) {
-                console.info("Checking Projects in the Solution");
-                projects = analyzeSolution(filePath);
-            }
-            else if (filePath.toLocaleLowerCase().endsWith('csproj')) {
-                console.info("Checking Projects in the Solution");
-                projects.push(filePath);
-            }
-            if (projects.length > 0) {
-                projects.forEach(function (project) {
-                    console.info("=== " + project + " ===");
-                    if (searchFordepsjson) {
-                        analyzeDepsjson(project);
+            switch (_a.label) {
+                case 0:
+                    filename = task.getInput('fileName', true);
+                    if (!filename) { }
+                    ;
+                    searchFordepsjson = task.getBoolInput("searchdepsjsoninprojects", false);
+                    failifseverityhigher = task.getInput("failifseverityhigher", false);
+                    if (!failifseverityhigher) {
+                        failifseverityhigher = "None";
                     }
-                    else {
-                        analyzeProject(project);
+                    projects = [];
+                    filePath = tl.findMatch(tl.getVariable("System.DefaultWorkingDirectory"), filename)[0];
+                    console.info("Path is " + filePath);
+                    if (filePath.toLocaleLowerCase().endsWith('sln')) {
+                        console.info("Checking Projects in the Solution");
+                        projects = analyzeSolution(filePath);
                     }
-                });
+                    else if (filePath.toLocaleLowerCase().endsWith('csproj')) {
+                        console.info("Checking Projects in the Solution");
+                        projects.push(filePath);
+                    }
+                    projectlist = {};
+                    if (projects.length > 0) {
+                        projects.forEach(function (project) {
+                            projectlist[project] = {};
+                            console.info("=== " + project + " ===");
+                            if (searchFordepsjson) {
+                                var packages = analyzeDepsjson(project);
+                                projectlist[project].packages = packages;
+                            }
+                            else {
+                                var packages = analyzeProject(project);
+                                projectlist[project].packages = packages;
+                            }
+                        });
+                    }
+                    packageList = [];
+                    for (key in globalPackageList) {
+                        packageList.push(key);
+                    }
+                    return [4 /*yield*/, analyzeAllPackages(packageList)];
+                case 1:
+                    _a.sent();
+                    for (prj in projectlist) {
+                        for (pck in projectlist[prj].packages) {
+                            if (globalPackageList[pck]) {
+                                projectlist[prj].packages[pck] = globalPackageList[pck];
+                            }
+                        }
+                    }
+                    // console.log(projectlist);
+                    for (prj in projectlist) {
+                        console.log("");
+                        console.log("" + prj);
+                        for (pck in projectlist[prj].packages) {
+                            consolepackageres(projectlist[prj].packages[pck]);
+                        }
+                        ;
+                        // console.log(`${JSON.stringify(projectlist[prj].packages[pck])}`)
+                    }
+                    // console.log(`All Packages: ${packageList.length}`)
+                    console.log("failifseverityhigher: " + failifseverityhigher);
+                    console.log("shouldTaskFails: " + shouldTaskFails);
+                    return [2 /*return*/];
             }
-            console.info("===  unique PackageList  ===");
-            packageList = [];
-            for (key in globalPackageList) {
-                packageList.push(key);
-                console.info("===  " + key);
-                value = globalPackageList[key];
-            }
-            paged = paginate(packageList, 100, 1);
-            analyzePackages(paged);
-            return [2 /*return*/];
         });
     });
 }
@@ -109,7 +143,7 @@ function analyzeSolution(slnLocation) {
     return projects;
 }
 function analyzeProject(prjLocation) {
-    var packages = [];
+    var packages = {};
     var filecontent = fs.readFileSync(prjLocation, 'utf8');
     var i = 0;
     filecontent.split(/\r?\n/).forEach(function (line) {
@@ -124,30 +158,22 @@ function analyzeProject(prjLocation) {
                     coordinate += result.PackageReference.$.Include + "@";
                     if (result.PackageReference.$.Version) {
                         coordinate += result.PackageReference.$.Version;
-                        packages.push(coordinate);
                     }
                     else {
                         console.warn(result.PackageReference.$.Include + "Package doesn't have version number");
                     }
                 }
-                console.log(i + " : " + coordinate);
+                // console.log(i + " : " + coordinate);
                 if (!globalPackageList[coordinate]) {
                     globalPackageList[coordinate] = {};
+                }
+                if (!packages[coordinate]) {
+                    packages[coordinate] = {};
                 }
             }
         });
     });
     return packages;
-}
-function analyzePackages(packagecoordinates) {
-    request.post("https://ossindex.sonatype.org/api/v3/component-report", { json: { coordinates: packagecoordinates } }, function (error, res, body) {
-        if (error) {
-            console.error(error);
-            return;
-        }
-        console.log("statusCode: " + res.statusCode);
-        console.log(body);
-    });
 }
 function finddepjson(prjLocation) {
     var folder = path.dirname(prjLocation);
@@ -157,27 +183,160 @@ function finddepjson(prjLocation) {
     return filteredPath;
 }
 function analyzeDepsjson(prjLocation) {
+    var packages = {};
     var deps = finddepjson(prjLocation);
     deps.forEach(function (dep) {
-        var packages = [];
+        var numberoflibraries = 0;
         var filecontent = fs.readFileSync(dep, 'utf8');
         var content = JSON.parse(filecontent);
         if (content.libraries) {
             for (var key in content.libraries) {
                 if (content.libraries.hasOwnProperty(key)) {
+                    numberoflibraries++;
                     var coordinate = 'pkg:nuget/' + key.replace('/', '@');
-                    console.log("" + coordinate);
+                    if (!packages[coordinate]) {
+                        packages[coordinate] = {};
+                    }
                     if (!globalPackageList[coordinate]) {
                         globalPackageList[coordinate] = {};
                     }
                 }
             }
         }
-        var i = 0;
+        console.log(dep + " >> " + numberoflibraries + " package found");
+    });
+    return packages;
+}
+function analyzeAllPackages(packagecoordinates) {
+    return __awaiter(this, void 0, void 0, function () {
+        var pageitem, allpages, totalpageNumber, index, paged, error_1;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    pageitem = 127;
+                    allpages = [];
+                    totalpageNumber = Math.ceil(packagecoordinates.length / pageitem);
+                    index = 0;
+                    _a.label = 1;
+                case 1:
+                    if (!(index < totalpageNumber)) return [3 /*break*/, 6];
+                    paged = paginate(packagecoordinates, pageitem, index);
+                    allpages.push(paged);
+                    _a.label = 2;
+                case 2:
+                    _a.trys.push([2, 4, , 5]);
+                    return [4 /*yield*/, analyzePackages(paged)];
+                case 3:
+                    _a.sent();
+                    return [3 /*break*/, 5];
+                case 4:
+                    error_1 = _a.sent();
+                    console.log("catch: " + error_1);
+                    return [3 /*break*/, 5];
+                case 5:
+                    index++;
+                    return [3 /*break*/, 1];
+                case 6: return [2 /*return*/, allpages];
+            }
+        });
     });
 }
+function analyzePackages(packagecoordinates) {
+    return new Promise(function (resolve, reject) {
+        request.post("https://ossindex.sonatype.org/api/v3/component-report", { json: { coordinates: packagecoordinates } }, function (error, res, body) {
+            if (error) {
+                console.error(error);
+                reject(error);
+                return;
+            }
+            console.log("statusCode: " + res.statusCode);
+            if (res.statusCode == 200) {
+                body.forEach(function (pck) {
+                    extractpackagedata(pck);
+                });
+                resolve(body);
+            }
+            else {
+                reject(body);
+            }
+        });
+    });
+}
+function extractpackagedata(pck) {
+    var item = {};
+    item.coordinates = pck.coordinates;
+    if (pck.vulnerabilities.length > 0) {
+        item.vulnerabilityText = "There are  " + pck.vulnerabilities.length + " vulnerabilities";
+        item.vulnerabilityCount = pck.vulnerabilities.length;
+        item.vulnerabilities = pck.vulnerabilities;
+        item.vulnerabilities.forEach(function (vulnerability) {
+            if (vulnerability.cvssScore) {
+                if (vulnerability.cvssScore >= 0.1 && vulnerability.cvssScore <= 3.9) {
+                    vulnerability.severity = "LOW";
+                    if (failifseverityhigher == "LOW") {
+                        shouldTaskFails = true;
+                        vulnerability.TaskFailed = "Task Will Fail";
+                    }
+                }
+                if (vulnerability.cvssScore >= 4.0 && vulnerability.cvssScore <= 6.9) {
+                    vulnerability.severity = "MEDIUM";
+                    // severityForegroundColor = ConsoleColor.Yellow;
+                    if (failifseverityhigher == "LOW" || failifseverityhigher == "MEDIUM") {
+                        shouldTaskFails = true;
+                        vulnerability.TaskFailed = "Task Will Fail";
+                    }
+                }
+                if (vulnerability.cvssScore >= 7.0 && vulnerability.cvssScore <= 8.9) {
+                    vulnerability.severity = "HIGH";
+                    // severityForegroundColor = ConsoleColor.Red;
+                    if (failifseverityhigher == "LOW" || failifseverityhigher == "MEDIUM" ||
+                        failifseverityhigher == "HIGH") {
+                        shouldTaskFails = true;
+                        vulnerability.TaskFailed = "Task Will Fail";
+                    }
+                }
+                if (vulnerability.cvssScore >= 9.0) {
+                    vulnerability.severity = "CRITICAL";
+                    // severityForegroundColor = ConsoleColor.Red;
+                    if (failifseverityhigher == "LOW" || failifseverityhigher == "MEDIUM" ||
+                        failifseverityhigher == "HIGH" || failifseverityhigher == "CRITICAL") {
+                        shouldTaskFails = true;
+                        vulnerability.TaskFailed = "Task Will Fail";
+                    }
+                }
+            }
+        });
+    }
+    else {
+        item.vulnerabilityText = "There is no vulnerability";
+        item.vulnerabilityCount = 0;
+        item.vulnerabilities = {};
+    }
+    if (globalPackageList[item.coordinates]) {
+        globalPackageList[item.coordinates] = item;
+    }
+    else {
+        console.log("****************** " + item.coordinates + " not found to add to globalPackageList ******************************");
+    }
+    // globalVulnerabilityList.push(item);
+    // consolepackageres(item);
+    //console.log(JSON.stringify(item));
+}
 function paginate(array, page_size, page_number) {
-    --page_number; // because pages logically start with 1, but technically with 0
     return array.slice(page_number * page_size, (page_number + 1) * page_size);
+}
+function consolepackageres(item) {
+    // console.log(JSON.stringify(item));
+    var message = "";
+    message = "   " + item.coordinates + " " + item.vulnerabilityText;
+    console.log(message);
+    if (item.vulnerabilityCount > 0) {
+        item.vulnerabilities.forEach(function (vulnerability) {
+            var vulnerabilityText = "    " + vulnerability.severity + " severity :  " + vulnerability.title + " ";
+            console.log("       " + vulnerabilityText);
+            console.log("       " + vulnerability.description);
+            console.log("       " + vulnerability.reference);
+        });
+    }
 }
 run();

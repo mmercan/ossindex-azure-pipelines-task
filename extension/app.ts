@@ -11,9 +11,17 @@ task.setResourcePath(path.join(__dirname, 'task.json'));
 
 var parser = new xml2js.Parser();
 var globalPackageList: any = {};
+// var globalVulnerabilityList: any[] = [];
+var failifseverityhigher: string;
+var shouldTaskFails = false;
+
 async function run() {
     let filename: string = task.getInput('fileName', true);
+    if (!filename) { };
     let searchFordepsjson: boolean = task.getBoolInput("searchdepsjsoninprojects", false);
+
+    failifseverityhigher = task.getInput("failifseverityhigher", false);
+    if (!failifseverityhigher) { failifseverityhigher = "None"; }
     let projects: string[] = [];
     const filePath = tl.findMatch(tl.getVariable("System.DefaultWorkingDirectory"), filename)[0];
 
@@ -26,26 +34,52 @@ async function run() {
         projects.push(filePath);
     }
 
+    let projectlist: any = {};
+
     if (projects.length > 0) {
-        projects.forEach(function (project) {
+        projects.forEach((project) => {
+            projectlist[project] = {};
             console.info("=== " + project + " ===");
             if (searchFordepsjson) {
-                analyzeDepsjson(project);
+                let packages = analyzeDepsjson(project);
+                projectlist[project].packages = packages;
             } else {
-                analyzeProject(project);
+                let packages = analyzeProject(project);
+                projectlist[project].packages = packages;
             }
         });
     }
 
-    console.info("===  unique PackageList  ===");
     let packageList = [];
-    for (var key in globalPackageList) {
+    for (let key in globalPackageList) {
         packageList.push(key);
-        console.info("===  " + key);
-        var value = globalPackageList[key];
     }
-    let paged = paginate(packageList, 100, 1)
-    analyzePackages(paged);
+    await analyzeAllPackages(packageList);
+
+    for (let prj in projectlist) {
+        for (let pck in projectlist[prj].packages) {
+            if (globalPackageList[pck]) {
+                projectlist[prj].packages[pck] = globalPackageList[pck];
+            }
+        }
+    }
+    // console.log(projectlist);
+
+    for (let prj in projectlist) {
+        console.log("");
+        console.log(`${prj}`)
+        for (let pck in projectlist[prj].packages) {
+            consolepackageres(projectlist[prj].packages[pck])
+        };
+
+        // console.log(`${JSON.stringify(projectlist[prj].packages[pck])}`)
+    }
+
+
+
+    // console.log(`All Packages: ${packageList.length}`)
+    console.log(`failifseverityhigher: ${failifseverityhigher}`)
+    console.log(`shouldTaskFails: ${shouldTaskFails}`)
 }
 
 function analyzeSolution(slnLocation: string): string[] {
@@ -54,12 +88,12 @@ function analyzeSolution(slnLocation: string): string[] {
     let filecontent = fs.readFileSync(slnLocation, 'utf8');
     //console.info(filecontent);
     let i = 0;
-    filecontent.split(/\r?\n/).forEach(function (line) {
+    filecontent.split(/\r?\n/).forEach((line) => {
         if (!line.startsWith("Project")) {
             return;
         }
-        var regex = new RegExp("(.*) = \"(.*?)\", \"(.*?.(cs|vb)proj)\"");
-        var match = regex.exec(line);
+        let regex = new RegExp("(.*) = \"(.*?)\", \"(.*?.(cs|vb)proj)\"");
+        let match = regex.exec(line);
         if (match && match.length > 0) {
             i++;
             //const fullprjlocation = tl.findMatch(slnfolder, match[3])[0];
@@ -72,15 +106,15 @@ function analyzeSolution(slnLocation: string): string[] {
 }
 
 function analyzeProject(prjLocation: string): string[] {
-    let packages: string[] = [];
+    let packages: any = {};
     let filecontent = fs.readFileSync(prjLocation, 'utf8');
 
     let i = 0;
-    filecontent.split(/\r?\n/).forEach(function (line) {
+    filecontent.split(/\r?\n/).forEach((line) => {
         if (!line.trim().startsWith("<PackageReference")) {
             return;
         }
-        parser.parseString(line, function (err: any, result: any) {
+        parser.parseString(line, (err: any, result: any) => {
             let coordinate = "pkg:nuget/";
             // "pkg:nuget/EnterpriseLibrary.Common@6.0.1304"
             if (result.PackageReference) {
@@ -88,32 +122,23 @@ function analyzeProject(prjLocation: string): string[] {
                     coordinate += result.PackageReference.$.Include + "@"
                     if (result.PackageReference.$.Version) {
                         coordinate += result.PackageReference.$.Version
-                        packages.push(coordinate);
+
                     } else {
                         console.warn(result.PackageReference.$.Include + "Package doesn't have version number");
                     }
                 }
-                console.log(i + " : " + coordinate);
+                // console.log(i + " : " + coordinate);
+
                 if (!globalPackageList[coordinate]) {
                     globalPackageList[coordinate] = {};
+                }
+                if (!packages[coordinate]) {
+                    packages[coordinate] = {};
                 }
             }
         });
     });
     return packages;
-}
-
-function analyzePackages(packagecoordinates: string[]) {
-    request.post("https://ossindex.sonatype.org/api/v3/component-report",
-        { json: { coordinates: packagecoordinates } }
-        , (error, res, body) => {
-            if (error) {
-                console.error(error)
-                return
-            }
-            console.log(`statusCode: ${res.statusCode}`)
-            console.log(body)
-        });
 }
 
 function finddepjson(prjLocation: string): string[] {
@@ -125,36 +150,177 @@ function finddepjson(prjLocation: string): string[] {
 }
 
 function analyzeDepsjson(prjLocation: string): string[] {
+    let packages: any = {};
     let deps = finddepjson(prjLocation);
     deps.forEach((dep) => {
+        let numberoflibraries = 0;
 
-
-        let packages: string[] = [];
         let filecontent = fs.readFileSync(dep, 'utf8');
         let content = JSON.parse(filecontent);
         if (content.libraries) {
             for (let key in content.libraries) {
                 if (content.libraries.hasOwnProperty(key)) {
-
+                    numberoflibraries++;
                     let coordinate = 'pkg:nuget/' + key.replace('/', '@');
-                    console.log(`${coordinate}`);
-
+                    if (!packages[coordinate]) {
+                        packages[coordinate] = {};
+                    }
                     if (!globalPackageList[coordinate]) {
                         globalPackageList[coordinate] = {};
                     }
                 }
             }
         }
-        let i = 0;
+        console.log(`${dep} >> ${numberoflibraries} package found`);
+    });
+    return packages;
+}
 
+async function analyzeAllPackages(packagecoordinates: string[]): Promise<any> {
+    let pageitem = 127;
+    let allpages = [];
+    let totalpageNumber = Math.ceil(packagecoordinates.length / pageitem);
+
+    for (let index = 0; index < totalpageNumber; index++) {
+        let paged = paginate(packagecoordinates, pageitem, index)
+        allpages.push(paged);
+
+        try {
+            await analyzePackages(paged);
+        } catch (error) {
+            console.log(`catch: ${error}`)
+        }
+
+
+    }
+    return allpages;
+}
+
+function analyzePackages(packagecoordinates: string[]) {
+    return new Promise((resolve, reject) => {
+        request.post("https://ossindex.sonatype.org/api/v3/component-report",
+            { json: { coordinates: packagecoordinates } }
+            , (error, res, body: IPackage[]) => {
+                if (error) {
+                    console.error(error)
+                    reject(error);
+                    return
+                }
+                console.log(`statusCode: ${res.statusCode}`)
+                if (res.statusCode == 200) {
+                    body.forEach(pck => {
+                        extractpackagedata(pck);
+                    });
+                    resolve(body);
+                } else {
+                    reject(body);
+                }
+            });
     });
 }
 
+function extractpackagedata(pck: IPackage) {
+    let item: any = {};
+    item.coordinates = pck.coordinates;
+    if (pck.vulnerabilities.length > 0) {
+        item.vulnerabilityText = "There are  " + pck.vulnerabilities.length + " vulnerabilities";
+        item.vulnerabilityCount = pck.vulnerabilities.length;
+        item.vulnerabilities = pck.vulnerabilities;
+
+        item.vulnerabilities.forEach((vulnerability: any) => {
+            if (vulnerability.cvssScore) {
+
+                if (vulnerability.cvssScore >= 0.1 && vulnerability.cvssScore <= 3.9) {
+                    vulnerability.severity = "LOW";
+                    if (failifseverityhigher == "LOW") {
+                        shouldTaskFails = true;
+                        vulnerability.TaskFailed = "Task Will Fail"
+                    }
+                }
+
+                if (vulnerability.cvssScore >= 4.0 && vulnerability.cvssScore <= 6.9) {
+                    vulnerability.severity = "MEDIUM";
+                    // severityForegroundColor = ConsoleColor.Yellow;
+                    if (failifseverityhigher == "LOW" || failifseverityhigher == "MEDIUM") {
+                        shouldTaskFails = true;
+                        vulnerability.TaskFailed = "Task Will Fail"
+                    }
+                }
+
+                if (vulnerability.cvssScore >= 7.0 && vulnerability.cvssScore <= 8.9) {
+                    vulnerability.severity = "HIGH";
+                    // severityForegroundColor = ConsoleColor.Red;
+                    if (failifseverityhigher == "LOW" || failifseverityhigher == "MEDIUM" ||
+                        failifseverityhigher == "HIGH") {
+                        shouldTaskFails = true;
+                        vulnerability.TaskFailed = "Task Will Fail"
+                    }
+                }
+
+                if (vulnerability.cvssScore >= 9.0) {
+                    vulnerability.severity = "CRITICAL";
+                    // severityForegroundColor = ConsoleColor.Red;
+                    if (failifseverityhigher == "LOW" || failifseverityhigher == "MEDIUM" ||
+                        failifseverityhigher == "HIGH" || failifseverityhigher == "CRITICAL") {
+                        shouldTaskFails = true;
+                        vulnerability.TaskFailed = "Task Will Fail"
+                    }
+                }
+            }
+        });
+
+    } else {
+        item.vulnerabilityText = "There is no vulnerability";
+        item.vulnerabilityCount = 0;
+        item.vulnerabilities = {};
+    }
+    if (globalPackageList[item.coordinates]) {
+        globalPackageList[item.coordinates] = item;
+    } else {
+        console.log("****************** " + item.coordinates + " not found to add to globalPackageList ******************************")
+    }
+    // globalVulnerabilityList.push(item);
+    // consolepackageres(item);
+    //console.log(JSON.stringify(item));
+}
 
 function paginate(array: any[], page_size: number, page_number: number) {
-    --page_number; // because pages logically start with 1, but technically with 0
     return array.slice(page_number * page_size, (page_number + 1) * page_size);
 }
 
+function consolepackageres(item: any) {
+    // console.log(JSON.stringify(item));
+    let message = "";
+    message = `   ${item.coordinates} ${item.vulnerabilityText}`;
+    console.log(message);
+    if (item.vulnerabilityCount > 0) {
+
+        item.vulnerabilities.forEach((vulnerability: any) => {
+            let vulnerabilityText = `    ${vulnerability.severity} severity :  ${vulnerability.title} `;
+            console.log(`       ${vulnerabilityText}`);
+            console.log(`       ${vulnerability.description}`);
+            console.log(`       ${vulnerability.reference}`);
+        });
+    }
+
+
+}
 
 run();
+
+
+interface IPackage {
+    coordinates: string;
+    description: string;
+    reference: string;
+    vulnerabilities: [];
+}
+interface IVulnerability {
+    id: string;
+    title: string;
+    description: string;
+    cvssScore: number;
+    cvssVector: string;
+    cve: string;
+    reference: string;
+}
