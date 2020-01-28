@@ -313,7 +313,7 @@ interface IPackage {
     coordinates: string;
     description: string;
     reference: string;
-    vulnerabilities: [];
+    vulnerabilities: any[];
 }
 interface IVulnerability {
     id: string;
