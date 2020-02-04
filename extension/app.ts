@@ -66,13 +66,13 @@ async function run() {
         }
     }
 
-    // for (let prj in projectlist) {
-    //     console.log("");
-    //     console.log(`${prj}`)
-    //     for (let pck in projectlist[prj].packages) {
-    //         consolepackageres(projectlist[prj].packages[pck])
-    //     };
-    // }
+    for (let prj in projectlist) {
+        console.log("");
+        console.log(`${prj}`)
+        for (let pck in projectlist[prj].packages) {
+            consolepackageres(projectlist[prj].packages[pck])
+        };
+    }
 
 
     // console.log(`All Packages: ${packageList.length}`)

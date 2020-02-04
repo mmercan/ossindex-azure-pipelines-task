@@ -50,7 +50,7 @@ var failifseverityhigher;
 var shouldTaskFails = false;
 function run() {
     return __awaiter(this, void 0, void 0, function () {
-        var filename, searchFordepsjson, projects, filePath, projectlist, packageList, key, prj, pck;
+        var filename, searchFordepsjson, projects, filePath, projectlist, packageList, key, prj, pck, prj, pck;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -102,13 +102,14 @@ function run() {
                             }
                         }
                     }
-                    // for (let prj in projectlist) {
-                    //     console.log("");
-                    //     console.log(`${prj}`)
-                    //     for (let pck in projectlist[prj].packages) {
-                    //         consolepackageres(projectlist[prj].packages[pck])
-                    //     };
-                    // }
+                    for (prj in projectlist) {
+                        console.log("");
+                        console.log("" + prj);
+                        for (pck in projectlist[prj].packages) {
+                            consolepackageres(projectlist[prj].packages[pck]);
+                        }
+                        ;
+                    }
                     // console.log(`All Packages: ${packageList.length}`)
                     console.log("failifseverityhigher: " + failifseverityhigher);
                     console.log("shouldTaskFails: " + shouldTaskFails);
