@@ -1,6 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/AArnott/vso-agent-tasks/9b41d803a/tasks.schema.json",
-    "id": "9b379453-81a7-4db9-8629-432bac4b00bc",
+    "id": "762fb898-d2ba-4007-a8c1-b19477a82402",
     "name": "package-vulnerability-scanner",
     "friendlyName": "Package Vulnerability Scanner",
     "description": "Nuget Package Vulnerability Scanner, Powered data provided by Sonatype OSSIndex",
