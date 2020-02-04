@@ -7,11 +7,13 @@ import path = require('path');
 import request = require('request');
 import { error } from 'azure-pipelines-task-lib';
 import xml2js = require('xml2js');
+import publishAnalysis from './publish'
+import { IPackage, IVulnerability, IProjectReport } from './models'
+
 task.setResourcePath(path.join(__dirname, 'task.json'));
 
 var parser = new xml2js.Parser();
 var globalPackageList: any = {};
-// var globalVulnerabilityList: any[] = [];
 var failifseverityhigher: string;
 var shouldTaskFails = false;
 
@@ -34,11 +36,11 @@ async function run() {
         projects.push(filePath);
     }
 
-    let projectlist: any = {};
+    let projectlist: IProjectReport = {};
 
     if (projects.length > 0) {
         projects.forEach((project) => {
-            projectlist[project] = {};
+            projectlist[project] = { packages: undefined };
             console.info("=== " + project + " ===");
             if (searchFordepsjson) {
                 let packages = analyzeDepsjson(project);
@@ -63,23 +65,22 @@ async function run() {
             }
         }
     }
-    // console.log(projectlist);
 
-    for (let prj in projectlist) {
-        console.log("");
-        console.log(`${prj}`)
-        for (let pck in projectlist[prj].packages) {
-            consolepackageres(projectlist[prj].packages[pck])
-        };
-
-        // console.log(`${JSON.stringify(projectlist[prj].packages[pck])}`)
-    }
-
+    // for (let prj in projectlist) {
+    //     console.log("");
+    //     console.log(`${prj}`)
+    //     for (let pck in projectlist[prj].packages) {
+    //         consolepackageres(projectlist[prj].packages[pck])
+    //     };
+    // }
 
 
     // console.log(`All Packages: ${packageList.length}`)
     console.log(`failifseverityhigher: ${failifseverityhigher}`)
     console.log(`shouldTaskFails: ${shouldTaskFails}`)
+
+
+    await publishAnalysis(projectlist);
 }
 
 function analyzeSolution(slnLocation: string): string[] {
@@ -308,19 +309,3 @@ function consolepackageres(item: any) {
 
 run();
 
-
-interface IPackage {
-    coordinates: string;
-    description: string;
-    reference: string;
-    vulnerabilities: any[];
-}
-interface IVulnerability {
-    id: string;
-    title: string;
-    description: string;
-    cvssScore: number;
-    cvssVector: string;
-    cve: string;
-    reference: string;
-}

@@ -42,15 +42,15 @@ var path = require("path");
 // import { request } from 'https';
 var request = require("request");
 var xml2js = require("xml2js");
+var publish_1 = require("./publish");
 task.setResourcePath(path.join(__dirname, 'task.json'));
 var parser = new xml2js.Parser();
 var globalPackageList = {};
-// var globalVulnerabilityList: any[] = [];
 var failifseverityhigher;
 var shouldTaskFails = false;
 function run() {
     return __awaiter(this, void 0, void 0, function () {
-        var filename, searchFordepsjson, projects, filePath, projectlist, packageList, key, prj, pck, prj, pck;
+        var filename, searchFordepsjson, projects, filePath, projectlist, packageList, key, prj, pck;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -76,7 +76,7 @@ function run() {
                     projectlist = {};
                     if (projects.length > 0) {
                         projects.forEach(function (project) {
-                            projectlist[project] = {};
+                            projectlist[project] = { packages: undefined };
                             console.info("=== " + project + " ===");
                             if (searchFordepsjson) {
                                 var packages = analyzeDepsjson(project);
@@ -102,19 +102,19 @@ function run() {
                             }
                         }
                     }
-                    // console.log(projectlist);
-                    for (prj in projectlist) {
-                        console.log("");
-                        console.log("" + prj);
-                        for (pck in projectlist[prj].packages) {
-                            consolepackageres(projectlist[prj].packages[pck]);
-                        }
-                        ;
-                        // console.log(`${JSON.stringify(projectlist[prj].packages[pck])}`)
-                    }
+                    // for (let prj in projectlist) {
+                    //     console.log("");
+                    //     console.log(`${prj}`)
+                    //     for (let pck in projectlist[prj].packages) {
+                    //         consolepackageres(projectlist[prj].packages[pck])
+                    //     };
+                    // }
                     // console.log(`All Packages: ${packageList.length}`)
                     console.log("failifseverityhigher: " + failifseverityhigher);
                     console.log("shouldTaskFails: " + shouldTaskFails);
+                    return [4 /*yield*/, publish_1["default"](projectlist)];
+                case 2:
+                    _a.sent();
                     return [2 /*return*/];
             }
         });
